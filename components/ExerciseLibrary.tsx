@@ -7,11 +7,18 @@ interface Props {
   exercises: Exercise[];
   onAdd: (exerciseId: string) => void;
   disabled: boolean;
+  /** true: fill a fixed-height parent and scroll internally. false: size naturally (mobile page scroll). */
+  fill?: boolean;
 }
 
 const ALL = "All";
 
-export default function ExerciseLibrary({ exercises, onAdd, disabled }: Props) {
+export default function ExerciseLibrary({
+  exercises,
+  onAdd,
+  disabled,
+  fill = true,
+}: Props) {
   const [query, setQuery] = useState("");
   const [movement, setMovement] = useState(ALL);
   const [mechanics, setMechanics] = useState(ALL);
@@ -40,7 +47,7 @@ export default function ExerciseLibrary({ exercises, onAdd, disabled }: Props) {
   }, [exercises, query, movement, mechanics]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={`flex flex-col ${fill ? "h-full" : ""}`}>
       <div className="mb-3 space-y-2">
         <input
           value={query}
@@ -58,7 +65,11 @@ export default function ExerciseLibrary({ exercises, onAdd, disabled }: Props) {
         {filtered.length} exercise{filtered.length === 1 ? "" : "s"}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+      <div
+        className={`space-y-1.5 overflow-y-auto pr-1 ${
+          fill ? "min-h-0 flex-1" : "max-h-[60vh]"
+        }`}
+      >
         {filtered.map((ex) => (
           <button
             key={ex.id}
