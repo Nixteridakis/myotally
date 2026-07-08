@@ -2,6 +2,10 @@
 
 See exactly how often each muscle group gets trained — before you even start your workout.
 
+**▶ Live app: [myotally.netlify.app](https://myotally.netlify.app/)**
+
+![Myotally demo](docs/demo.gif)
+
 ## What is this?
 
 If you plan your training in Notion — tagging every exercise with which muscles it works as primary, secondary, or tertiary — you already have the data to answer "am I actually training my whole body evenly?" The hard part is doing that math by hand every time you plan a new week.
