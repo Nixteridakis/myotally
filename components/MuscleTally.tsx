@@ -9,6 +9,8 @@ interface Props {
   sessions: Session[];
   exercisesById: Record<string, Exercise>;
   allMuscles: MuscleGroup[];
+  /** true: fill a fixed-height parent and scroll internally. false: size naturally (mobile page scroll). */
+  fill?: boolean;
 }
 
 const fmt = (n: number) => (Number.isInteger(n) ? `${n}` : n.toFixed(1));
@@ -17,6 +19,7 @@ export default function MuscleTally({
   sessions,
   exercisesById,
   allMuscles,
+  fill = true,
 }: Props) {
   const { presetId, preset, setPresetId } = useWeightPreset();
 
@@ -34,7 +37,7 @@ export default function MuscleTally({
   const max = Math.max(1, ...rows.map((r) => r.total));
 
   return (
-    <div className="flex h-full flex-col">
+    <div className={`flex flex-col ${fill ? "h-full" : ""}`}>
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">Weekly muscle frequency</h2>
       </div>
@@ -57,7 +60,11 @@ export default function MuscleTally({
       </div>
       <p className="mb-3 text-xs text-white/40">{preset.description}</p>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+      <div
+        className={`space-y-2 pr-1 ${
+          fill ? "min-h-0 flex-1 overflow-y-auto" : ""
+        }`}
+      >
         {rows.map((r) => (
           <div key={r.muscle}>
             <div className="flex items-baseline justify-between text-sm">
