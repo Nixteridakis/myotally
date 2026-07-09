@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Exercise, NotionData, Session } from "@/lib/types";
-import { useSessions } from "@/lib/useSessions";
+import {
+  useSessions,
+  serializeSessions,
+  deserializeSessions,
+} from "@/lib/useSessions";
 import ExerciseLibrary from "@/components/ExerciseLibrary";
 import SessionColumn from "@/components/SessionColumn";
 import MuscleTally from "@/components/MuscleTally";
@@ -23,7 +27,9 @@ export default function Home() {
     addExercise,
     removeExerciseAt,
     setExerciseSets,
+    moveExercise,
     clearAll,
+    replaceSessions,
   } = useSessions();
 
   const load = useCallback(async (refresh = false) => {
@@ -76,6 +82,51 @@ export default function Home() {
     [activeId, addExercise, isDesktop, exercisesById, sessions, showToast]
   );
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = useCallback(() => {
+    const text = serializeSessions(sessions);
+    const blob = new Blob([text], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `myotally-sessions-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${sessions.length} session${sessions.length === 1 ? "" : "s"}`);
+  }, [sessions, showToast]);
+
+  const handleImportFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const next = deserializeSessions(String(reader.result));
+          const hasData = sessions.some((s) => s.items.length > 0);
+          if (
+            hasData &&
+            !window.confirm(
+              `Replace your current sessions with ${next.length} imported session${
+                next.length === 1 ? "" : "s"
+              }?`
+            )
+          ) {
+            return;
+          }
+          replaceSessions(next);
+          showToast(`Imported ${next.length} session${next.length === 1 ? "" : "s"}`);
+        } catch (err) {
+          showToast(
+            `Import failed: ${err instanceof Error ? err.message : "invalid file"}`
+          );
+        }
+      };
+      reader.onerror = () => showToast("Import failed: couldn't read file");
+      reader.readAsText(file);
+    },
+    [sessions, replaceSessions, showToast]
+  );
+
   const sectionCls = (fill: boolean) =>
     `rounded-lg border border-white/10 bg-white/[0.015] p-3 ${
       fill ? "h-full min-h-0" : ""
@@ -98,14 +149,41 @@ export default function Home() {
 
   const sessionsSection = (fill: boolean) => (
     <section className={`flex min-w-0 flex-col ${sectionCls(fill)}`}>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Sessions</h2>
-        <button
-          onClick={addSession}
-          className="rounded-md border border-white/15 px-2.5 py-1 text-xs transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
-        >
-          + Add session
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExport}
+            title="Download your sessions as a backup file"
+            className="rounded-md border border-white/15 px-2.5 py-1 text-xs transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
+          >
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            title="Restore sessions from a backup file"
+            className="rounded-md border border-white/15 px-2.5 py-1 text-xs transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
+          >
+            Import
+          </button>
+          <button
+            onClick={addSession}
+            className="rounded-md border border-white/15 px-2.5 py-1 text-xs transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
+          >
+            + Add session
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleImportFile(f);
+              e.target.value = "";
+            }}
+          />
+        </div>
       </div>
       <div
         className={`flex gap-3 overflow-x-auto pb-1 ${
@@ -128,6 +206,8 @@ export default function Home() {
               onRemove={() => removeSession(s.id)}
               onRemoveExerciseAt={(i) => removeExerciseAt(s.id, i)}
               onSetsChange={(i, sets) => setExerciseSets(s.id, i, sets)}
+              dndEnabled={isDesktop}
+              onMove={moveExercise}
             />
           ))}
       </div>
@@ -164,6 +244,7 @@ export default function Home() {
           {sessionsSection(true)}
           {tallySection(true)}
         </div>
+        <Toast message={toast} />
       </main>
     );
   }
