@@ -66,6 +66,38 @@ function normalizeSession(raw: any): Session {
   return { id, name, items: [] };
 }
 
+const EXPORT_VERSION = 1;
+
+/** Serialize sessions to a versioned JSON string for download/backup. */
+export function serializeSessions(sessions: Session[]): string {
+  return JSON.stringify(
+    {
+      app: "myotally",
+      type: "sessions",
+      version: EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      sessions,
+    },
+    null,
+    2
+  );
+}
+
+/**
+ * Parse a previously-exported file back into sessions. Accepts either the full
+ * envelope produced by serializeSessions or a bare array of sessions, and
+ * normalizes every entry so partial/older files still import cleanly.
+ * Throws if the text isn't valid JSON or has no sessions array.
+ */
+export function deserializeSessions(text: string): Session[] {
+  const data = JSON.parse(text);
+  const raw = Array.isArray(data) ? data : data?.sessions;
+  if (!Array.isArray(raw)) {
+    throw new Error("no sessions found in file");
+  }
+  return raw.map(normalizeSession);
+}
+
 export function useSessions() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -174,10 +206,59 @@ export function useSessions() {
     []
   );
 
+  /**
+   * Move an exercise from one session to another (or reorder within one).
+   * toIndex is the insertion index in the target; pass -1 to append.
+   */
+  const moveExercise = useCallback(
+    (fromSessionId: string, fromIndex: number, toSessionId: string, toIndex: number) => {
+      setSessions((prev) => {
+        const fromSession = prev.find((s) => s.id === fromSessionId);
+        const item = fromSession?.items[fromIndex];
+        if (!item) return prev;
+
+        if (fromSessionId === toSessionId) {
+          return prev.map((s) => {
+            if (s.id !== fromSessionId) return s;
+            const items = [...s.items];
+            items.splice(fromIndex, 1);
+            let at = toIndex < 0 ? items.length : toIndex;
+            if (toIndex > fromIndex) at = toIndex - 1; // account for removal shift
+            at = Math.max(0, Math.min(at, items.length));
+            items.splice(at, 0, item);
+            return { ...s, items };
+          });
+        }
+
+        return prev.map((s) => {
+          if (s.id === fromSessionId) {
+            return { ...s, items: s.items.filter((_, i) => i !== fromIndex) };
+          }
+          if (s.id === toSessionId) {
+            const items = [...s.items];
+            const at = toIndex < 0 ? items.length : Math.max(0, Math.min(toIndex, items.length));
+            items.splice(at, 0, item);
+            return { ...s, items };
+          }
+          return s;
+        });
+      });
+    },
+    []
+  );
+
   const clearAll = useCallback(() => {
     const fresh = defaultSessions();
     setSessions(fresh);
     setActiveId(fresh[0]?.id ?? null);
+  }, []);
+
+  /** Replace all sessions (used by import). Falls back to defaults if empty. */
+  const replaceSessions = useCallback((next: Session[]) => {
+    const normalized = next.map(normalizeSession);
+    const final = normalized.length ? normalized : defaultSessions();
+    setSessions(final);
+    setActiveId(final[0]?.id ?? null);
   }, []);
 
   return {
@@ -191,6 +272,8 @@ export function useSessions() {
     addExercise,
     removeExerciseAt,
     setExerciseSets,
+    moveExercise,
     clearAll,
+    replaceSessions,
   };
 }

@@ -1,6 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import type { Exercise, Session } from "@/lib/types";
+
+interface DragPayload {
+  fromSessionId: string;
+  fromIndex: number;
+}
 
 interface Props {
   session: Session;
@@ -11,7 +17,17 @@ interface Props {
   onRemove: () => void;
   onRemoveExerciseAt: (index: number) => void;
   onSetsChange: (index: number, sets: number) => void;
+  /** Enable drag-and-drop of exercises between columns (desktop only). */
+  dndEnabled?: boolean;
+  onMove?: (
+    fromSessionId: string,
+    fromIndex: number,
+    toSessionId: string,
+    toIndex: number
+  ) => void;
 }
+
+const MIME = "application/x-myotally-exercise";
 
 export default function SessionColumn({
   session,
@@ -22,14 +38,57 @@ export default function SessionColumn({
   onRemove,
   onRemoveExerciseAt,
   onSetsChange,
+  dndEnabled = false,
+  onMove,
 }: Props) {
   const totalSets = session.items.reduce((sum, it) => sum + it.sets, 0);
+  const [dragOver, setDragOver] = useState(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+
+  const readPayload = (e: React.DragEvent): DragPayload | null => {
+    try {
+      return JSON.parse(e.dataTransfer.getData(MIME)) as DragPayload;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    const payload: DragPayload = { fromSessionId: session.id, fromIndex: index };
+    e.dataTransfer.setData(MIME, JSON.stringify(payload));
+    e.dataTransfer.effectAllowed = "move";
+    // Use the whole exercise row (the handle's parent) as the drag ghost, so the
+    // item visibly follows the cursor instead of just the tiny handle glyph.
+    const row = (e.currentTarget as HTMLElement).parentElement;
+    if (row) e.dataTransfer.setDragImage(row, 12, 12);
+    setDraggingIndex(index);
+  };
+
+  const handleDragEnd = () => setDraggingIndex(null);
+
+  const dropTo = (e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const payload = readPayload(e);
+    if (payload && onMove) {
+      onMove(payload.fromSessionId, payload.fromIndex, session.id, toIndex);
+    }
+  };
+
+  const allowDrop = (e: React.DragEvent) => {
+    if (!dndEnabled) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
 
   return (
     <div
       onClick={onActivate}
       className={`flex w-72 shrink-0 cursor-pointer flex-col rounded-lg border transition ${
-        active
+        dragOver
+          ? "border-saiyan-orange bg-saiyan-orange/10"
+          : active
           ? "border-saiyan-orange/70 bg-saiyan-orange/[0.06]"
           : "border-white/10 bg-white/[0.02] hover:border-white/20"
       }`}
@@ -65,15 +124,44 @@ export default function SessionColumn({
         </div>
       )}
 
-      <div className="min-h-[3rem] flex-1 space-y-1 p-2">
+      {/* Dropping anywhere in this area appends to the end of the session. */}
+      <div
+        className="min-h-[3rem] flex-1 space-y-1 p-2"
+        onDragOver={allowDrop}
+        onDragEnter={dndEnabled ? () => setDragOver(true) : undefined}
+        onDragLeave={
+          dndEnabled
+            ? (e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false);
+              }
+            : undefined
+        }
+        onDrop={dndEnabled ? (e) => dropTo(e, -1) : undefined}
+      >
         {session.items.map((item, index) => {
           const ex = exercisesById[item.exerciseId];
           return (
             <div
               key={`${item.exerciseId}-${index}`}
-              className="group flex items-center gap-2 rounded bg-black/20 px-2 py-1.5"
+              className={`group flex items-center gap-2 rounded bg-black/20 px-2 py-1.5 transition-opacity ${
+                draggingIndex === index ? "opacity-40" : ""
+              }`}
+              onDragOver={dndEnabled ? allowDrop : undefined}
+              onDrop={dndEnabled ? (e) => dropTo(e, index) : undefined}
             >
-              <span className="flex-1 truncate text-sm">
+              {dndEnabled && (
+                <span
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 cursor-grab select-none text-white/25 transition hover:text-white/60 active:cursor-grabbing"
+                  title="Drag to another session"
+                >
+                  ⠿
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate text-sm">
                 {ex?.name ?? "(unknown exercise)"}
               </span>
               <input
@@ -102,7 +190,7 @@ export default function SessionColumn({
         })}
         {session.items.length === 0 && (
           <p className="py-4 text-center text-xs text-white/30">
-            No exercises yet
+            {dragOver ? "Drop to add here" : "No exercises yet"}
           </p>
         )}
       </div>
