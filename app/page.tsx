@@ -59,6 +59,29 @@ export default function Home() {
 
   const isDesktop = useIsDesktop();
   const [pane, setPane] = useState<Pane>("sessions");
+  const [libraryCollapsed, setLibraryCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("myotally.library-collapsed.v1") === "1") {
+        setLibraryCollapsed(true);
+      }
+    } catch {
+      /* storage unavailable — keep default */
+    }
+  }, []);
+
+  const toggleLibraryCollapsed = useCallback(() => {
+    setLibraryCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("myotally.library-collapsed.v1", next ? "1" : "0");
+      } catch {
+        /* storage unavailable — ignore */
+      }
+      return next;
+    });
+  }, []);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -132,20 +155,51 @@ export default function Home() {
       fill ? "h-full min-h-0" : ""
     }`;
 
-  const librarySection = (fill: boolean) => (
-    <section className={sectionCls(fill)}>
-      {loading && !data ? (
-        <Skeleton label="Loading exercises from Notion…" />
-      ) : (
-        <ExerciseLibrary
-          exercises={data?.exercises ?? []}
-          onAdd={handleAdd}
-          disabled={!activeId}
-          fill={fill}
-        />
-      )}
-    </section>
-  );
+  const librarySection = (fill: boolean, collapsible = false) => {
+    if (collapsible && libraryCollapsed) {
+      return (
+        <section
+          className={`relative flex flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.015] ${
+            fill ? "h-full min-h-0" : ""
+          }`}
+        >
+          <button
+            onClick={toggleLibraryCollapsed}
+            title="Expand exercise library"
+            className="flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-[#0d0f14] text-xs text-white/60 transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
+          >
+            ›
+          </button>
+          <span className="text-[11px] text-white/30 [writing-mode:vertical-rl]">
+            Exercises
+          </span>
+        </section>
+      );
+    }
+    return (
+      <section className={`relative ${sectionCls(fill)}`}>
+        {collapsible && (
+          <button
+            onClick={toggleLibraryCollapsed}
+            title="Collapse exercise library"
+            className="absolute -right-3 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-[#0d0f14] text-xs text-white/60 transition hover:border-saiyan-orange/60 hover:text-saiyan-orange"
+          >
+            ‹
+          </button>
+        )}
+        {loading && !data ? (
+          <Skeleton label="Loading exercises from Notion…" />
+        ) : (
+          <ExerciseLibrary
+            exercises={data?.exercises ?? []}
+            onAdd={handleAdd}
+            disabled={!activeId}
+            fill={fill}
+          />
+        )}
+      </section>
+    );
+  };
 
   const sessionsSection = (fill: boolean) => (
     <section className={`flex min-w-0 flex-col ${sectionCls(fill)}`}>
@@ -239,8 +293,12 @@ export default function Home() {
     return (
       <main className="flex h-screen flex-col overflow-hidden">
         <Header data={data} loading={loading} onRefresh={() => load(true)} onClear={clearAll} />
-        <div className="grid min-h-0 flex-1 grid-cols-[320px_1fr_320px] gap-4 p-4">
-          {librarySection(true)}
+        <div
+          className={`grid min-h-0 flex-1 gap-4 p-4 ${
+            libraryCollapsed ? "grid-cols-[56px_1fr_320px]" : "grid-cols-[320px_1fr_320px]"
+          }`}
+        >
+          {librarySection(true, true)}
           {sessionsSection(true)}
           {tallySection(true)}
         </div>
