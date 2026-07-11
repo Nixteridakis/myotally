@@ -25,6 +25,8 @@ interface Props {
     toSessionId: string,
     toIndex: number
   ) => void;
+  /** Split available row width equally instead of a fixed width (desktop only). */
+  equalWidth?: boolean;
 }
 
 const MIME = "application/x-myotally-exercise";
@@ -40,6 +42,7 @@ export default function SessionColumn({
   onSetsChange,
   dndEnabled = false,
   onMove,
+  equalWidth = false,
 }: Props) {
   const totalSets = session.items.reduce((sum, it) => sum + it.sets, 0);
   const [dragOver, setDragOver] = useState(false);
@@ -85,7 +88,9 @@ export default function SessionColumn({
   return (
     <div
       onClick={onActivate}
-      className={`flex w-72 shrink-0 cursor-pointer flex-col rounded-lg border transition ${
+      className={`flex ${
+        equalWidth ? "min-w-0 flex-1" : "w-72 shrink-0"
+      } cursor-pointer flex-col rounded-lg border transition ${
         dragOver
           ? "border-saiyan-orange bg-saiyan-orange/10"
           : active
@@ -126,7 +131,7 @@ export default function SessionColumn({
 
       {/* Dropping anywhere in this area appends to the end of the session. */}
       <div
-        className="min-h-[3rem] flex-1 space-y-1 p-2"
+        className="min-h-[3rem] flex-1 space-y-1 overflow-y-auto p-2"
         onDragOver={allowDrop}
         onDragEnter={dndEnabled ? () => setDragOver(true) : undefined}
         onDragLeave={
