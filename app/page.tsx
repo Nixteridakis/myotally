@@ -262,6 +262,7 @@ export default function Home() {
               onSetsChange={(i, sets) => setExerciseSets(s.id, i, sets)}
               dndEnabled={isDesktop}
               onMove={moveExercise}
+              equalWidth={isDesktop}
             />
           ))}
       </div>
